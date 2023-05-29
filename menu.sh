@@ -72,11 +72,11 @@ creat_snapshot(){
 	
 	if [ "$TARGET" == 'root' ]; then
 		# [ -n "$NAMESNAPSHOT" ] && sudo btrfs subvolume snapshot $NAMESNAPSHOT
-		touch $NAMESNAPSHOT
+		mkdir $NAMESNAPSHOT
 		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $NAMESNAPSHOT\nPath: $TARGET"
 	elif [ "$TARGET" == 'home' ]; then
 		# [ -n "$NAMESNAPSHOT" ] && btrfs subvolume snapshot $NAMESNAPSHOT
-		touch $NAMESNAPSHOT
+		mkdir $NAMESNAPSHOT
 		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $NAMESNAPSHOT\nPath: $TARGET"
 	fi
 }
@@ -102,7 +102,7 @@ restore_delete(){
 	# Hapus snapshot
 	delete_snapshot(){
 		if [ "$?" -eq 0 ] && [ "$selected_file" ]; then
-			sudo rm $selected_file
+			rmdir $selected_file
 			msg="Selected: '$selected_file'\nSnapshot berhasil dihapus."
 		else
 			msg='Pilih menu: '
@@ -131,10 +131,10 @@ restore_delete(){
 	fi
 }	
 
-check_active_snapshot(){
+configure_snapshot(){
 	local DEFAULT_NAME UUID_TARGET_PATH ACTIVE_SNAPSHOT GEN_MAX PATH_FSTAB
 	DEFAULT_NAME=@active_home
-	PATH_FSTAB=tes.txt
+	PATH_FSTAB=$(dirname $(realpath $0))/tes.txt
 	
 	target_path
 	
@@ -147,29 +147,31 @@ check_active_snapshot(){
 		ACTIVE_SNAPSHOT=$(sudo btrfs subvolume list $MOUNTPOINT | grep "$GEN_MAX" | awk '{print $9}')
 		
 		# Setup default snapshot
-		if [ -n "$ACTIVE_SNAPSHOT" ] && [ -d "$ACTIVE_SNAPSHOT" ]; then
+		if [ -n "$ACTIVE_SNAPSHOT" ]; then
 		
 			#~ mv /mnt/$ACTIVE_SNAPSHOT /mnt/$DEFAULT_NAME
-			mv $ACTIVE_SNAPSHOT $DEFAULT_NAME
-			
-		else
+			if [ -d "$(dirname $(realpath $0))/$ACTIVE_SNAPSHOT" ]; then
+				mv $ACTIVE_SNAPSHOT $DEFAULT_NAME
+			else
 		
-			if [ "$TARGET" == 'root' ]; then
-				#~ [ -n "$NAMESNAPSHOT" ] && sudo btrfs subvolume creat $DEFAULT_NAME
-				#~ sudo btrfs subvolume snapshot $MOUNTPOINT $DEFAULT_NAME
-				touch $DEFAULT_NAME
-				[ "$?" -eq 0 ] && msg="Membuat default subvolume."
-			elif [ "$TARGET" == 'home' ]; then
-				#~ [ -n "$NAMESNAPSHOT" ] && btrfs subvolume creat $DEFAULT_NAME
-				#~ btrfs subvolume snapshot $MOUNTPOINT $DEFAULT_NAME
-				touch $DEFAULT_NAME
-				[ "$?" -eq 0 ] && msg="Membuat default subvolume."
+				if [ "$TARGET" == 'root' ]; then
+					#~ [ -n "$NAMESNAPSHOT" ] && sudo btrfs subvolume creat $DEFAULT_NAME
+					#~ sudo btrfs subvolume snapshot $MOUNTPOINT $DEFAULT_NAME
+					mkdir $(dirname $(realpath $0))/$DEFAULT_NAME
+					[ "$?" -eq 0 ] && msg="Membuat default subvolume."
+				elif [ "$TARGET" == 'home' ]; then
+					#~ [ -n "$NAMESNAPSHOT" ] && btrfs subvolume creat $DEFAULT_NAME
+					#~ btrfs subvolume snapshot $MOUNTPOINT $DEFAULT_NAME
+					mkdir $(dirname $(realpath $0))/$DEFAULT_NAME
+					[ "$?" -eq 0 ] && msg="Membuat default subvolume."
+				fi
+			
 			fi
 			
 		fi
 		
 		# Setup /etc/fstab
-		if [[ -n $(sed -n '/\/home/p' $PATH_FSTAB) ]]; then
+		if [[ $(sed -n '/\/home/p' $PATH_FSTAB) ]]; then
 		
 			# Menambahkan komentar pada baris dengan kata kunci "/home" jika belum ada komentar
 			sed -i '/^\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
@@ -222,7 +224,7 @@ main_menu(){
 				restore_delete 'delete_snapshot'
 			;;
 			'active_snapshot' )
-				check_active_snapshot
+				configure_snapshot
 			;;
 		esac
 		ls /mnt
