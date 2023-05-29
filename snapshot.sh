@@ -60,8 +60,7 @@ home_snapshot(){
 	}
 	
 	run_restore(){
-		
-		run_snapshot
+		echo "Restoring to last snapshot.."
 		
 		local MNT PATHHOME YN SRC NEW OLD TMP
 		
@@ -78,18 +77,18 @@ home_snapshot(){
 		OLD=/mnt/@home_old
 		TMP=/mnt/@tmp
 		
-		if [ -d "$SRC" ]: then
+		if [ -d "$SRC" ]; then
 			[ -d "$TMP" ] && sudo btrfs subvolume delete $TMP
 			
 			! [ -d "$TMP" ] && mv $SRC $TMP && echo -e "$SRC rename to $TMP"
-			[ -d "$OLD" ] && mv $OLD $SRC && echo -e "$OLD rename to $SRC"
-			[ -d "$TMP" ] && mv $TMP $OLD && echo -e "$TMP rename to $OLD"
+			[ -d "$NEW" ] && mv $NEW $SRC && echo -e "$NEW rename to $SRC"
+			[ -d "$TMP" ] && mv $TMP $NEW && echo -e "$TMP rename to $NEW"
 		fi
 		
 		MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $2}')
 		[ -n "$MNT" ] && sudo umount /mnt && echo -e "\n[Umount $PATHHOME from /mnt]"
 		
-		if [ "$?" -eq 0]; then
+		if [ "$?" -eq 0 ]; then
 			echo -e "\n\tRestore snapshot berhasil. Restarting...\n"
 			sleep 3
 			systemctl reboot
