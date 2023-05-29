@@ -18,6 +18,7 @@ home_snapshot(){
 		# umount /mnt jika ada disk yg terpasang pada /mnt
 		MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $2}')
 		[ -n "$MNT" ] && sudo umount /mnt && echo "Umount /mnt..."
+		
 		# mount partisi /home ke /mnt
 		PATHHOME=$(lsblk -o path,mountpoint | awk '$2=="/home" {print $1}')
 		[ -n "$PATHHOME" ] && sudo mount -t btrfs -o subvolid=5 $PATHHOME /mnt && echo "[Mount $PATHHOME to /mnt]"
@@ -67,6 +68,7 @@ home_snapshot(){
 		# umount /mnt jika ada disk yg terpasang pada /mnt
 		MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $2}')
 		[ -n "$MNT" ] && sudo umount /mnt && echo "Umount /mnt..."
+		
 		# mount partisi /home ke /mnt
 		PATHHOME=$(lsblk -o path,mountpoint | awk '$2=="/home" {print $1}')
 		[ -n "$PATHHOME" ] && sudo mount -t btrfs -o subvolid=5 $PATHHOME /mnt && echo "[Mount $PATHHOME to /mnt]"
@@ -90,7 +92,7 @@ home_snapshot(){
 		
 		if [ "$?" -eq 0 ]; then
 			echo -e "\n\tRestore snapshot berhasil. Restarting...\n"
-			sleep 3
+			sleep 10
 			systemctl reboot
 		fi
 	}
