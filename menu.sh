@@ -26,8 +26,7 @@ mount_target_path(){
 }
 
 input_box(){
-	local msg=$1
-	local name=$2
+	local msg=$1 name=$2
 	echo $(whiptail --title "BUAT SNAPSHOT" --inputbox "$msg" 8 50 $name 2>&1 >/dev/tty)
 }
 
@@ -152,8 +151,8 @@ configure_snapshot(){
 			#~ mv /mnt/$ACTIVE_SNAPSHOT /mnt/$DEFAULT_NAME
 			if [ -d "$(dirname $(realpath $0))/$ACTIVE_SNAPSHOT" ]; then
 				mv $ACTIVE_SNAPSHOT $DEFAULT_NAME
-			else
-		
+				
+			elif ! [[ -d "$(dirname $(realpath $0))/$DEFAULT_NAME" ]]; then
 				if [ "$TARGET" == 'root' ]; then
 					#~ [ -n "$NAMESNAPSHOT" ] && sudo btrfs subvolume creat $DEFAULT_NAME
 					#~ sudo btrfs subvolume snapshot $MOUNTPOINT $DEFAULT_NAME
