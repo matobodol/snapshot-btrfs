@@ -56,11 +56,46 @@ home_snapshot(){
 		run_list
 		
 		MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $2}')
-		[ -n "$MNT" ] && sudo umount /mnt && echo -e "\n[Umount $PATHHOME from /mnt]"		
+		[ -n "$MNT" ] && sudo umount /mnt && echo -e "\n[Umount $PATHHOME from /mnt]"	
 	}
 	
-	
-	
+	run_restore(){
+		
+		run_snapshot
+		
+		local MNT PATHHOME YN SRC NEW OLD TMP
+		
+		# umount /mnt jika ada disk yg terpasang pada /mnt
+		MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $2}')
+		[ -n "$MNT" ] && sudo umount /mnt && echo "Umount /mnt..."
+		# mount partisi /home ke /mnt
+		PATHHOME=$(lsblk -o path,mountpoint | awk '$2=="/home" {print $1}')
+		[ -n "$PATHHOME" ] && sudo mount -t btrfs -o subvolid=5 $PATHHOME /mnt && echo "[Mount $PATHHOME to /mnt]"
+		echo ''
+		
+		SRC=/mnt/@home
+		NEW=/mnt/@home_new
+		OLD=/mnt/@home_old
+		TMP=/mnt/@tmp
+		
+		if [ -d "$SRC" ]: then
+			[ -d "$TMP" ] && sudo btrfs subvolume delete $TMP
+			
+			! [ -d "$TMP" ] && mv $SRC $TMP && echo -e "$SRC rename to $TMP"
+			[ -d "$OLD" ] && mv $OLD $SRC && echo -e "$OLD rename to $SRC"
+			[ -d "$TMP" ] && mv $TMP $OLD && echo -e "$TMP rename to $OLD"
+		fi
+		
+		MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $2}')
+		[ -n "$MNT" ] && sudo umount /mnt && echo -e "\n[Umount $PATHHOME from /mnt]"
+		
+		if [ "$?" -eq 0]; then
+			echo -e "\n\tRestore snapshot berhasil. Restarting...\n"
+			sleep 3
+			systemctl reboot
+		fi
+	}
+
 	$target
 }
 
