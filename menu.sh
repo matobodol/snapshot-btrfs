@@ -93,7 +93,7 @@ creat_snapshot(){
 	configure_snapshot
 	
 	msg="Nama snapshot:\nNOTE: jangan hapus symbol '@' pada nama."
-	SNAPSHOT_NAME=$(input_box "$msg" "@${TARGET_SNAPSHOT}_$(date +"Date_%Y-%m-%d_Time_%H-%M-%S")")
+	SNAPSHOT_NAME=$(input_box "$msg" "@${TARGET_SNAPSHOT}_$(date +"%Y-%m-%d_%H%M%S")")
 	
 	if [ "$TARGET_SNAPSHOT" == 'root' ]; then
 	
@@ -108,7 +108,7 @@ creat_snapshot(){
 		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $TARGET_SNAPSHOT"
 	fi
 	
-	[ "$configured" -eq 0 ] && msg="berhasil mengkonfigurasi.\nSystem akan restart dalam 10 detik..."
+	[[ "$configured" -eq 0 ]] && msg="berhasil mengkonfigurasi.\nSystem akan restart dalam 10 detik..."
 }
 
 # Restore/hapus snapshot
@@ -265,7 +265,8 @@ configure_snapshot(){
 		ADD_FSTAB="UUID=$UUID_TARGET_PATH /home btrfs defaults,subvol=$DEFAULT_ACTIVE_NAME 0 2"
 
 		# Menambahkan baris dengan konten dinamis pada file "/etc/fstab"
-		sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
+		#sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
+		echo "$ADD_FSTAB" | sudo tee -a $PATH_FSTAB
 	fi
 	
 	if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
