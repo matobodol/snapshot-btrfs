@@ -105,13 +105,30 @@ restore_delete(){
 	# Restore snapshot
 	restore_snapshot(){
 		
-		if [ "$?" -eq 0 ] && [ "$SELECTED_FILE" ]; then
-			msg="Selected: '${SELECTED_FILE}'\nRestore snapshot berhasil."
-			# mv @active_$TARGET_SNAPSHOT @tmp
-			# mv $SELECTED_FILE @active_$TARGET_SNAPSHOT
-			# mv @tmp $SELECTED_FILE
-		
-			# systemctl reboot
+		if [ "$?" -eq 0 ] && [ -n "$SELECTED_FILE" ]; then
+			
+			whiptail --title 'RESTORING SNAPSHOT' --yesno \
+				"sebelum melanjutkan, mohon simpan semua pekerjaan anda terlebih dahulu,\
+				\ndan buatlah snapshot baru pada sesi saat ini.\
+				\nkarena setelah proses ini selesai system akan otomatis restart \
+				\ndan semua data dari waktu terakhir membuat snapshot sampai saat ini akan hilang." 0 0
+			
+			if [ "$?" -eq 0 ]; then
+				
+				[ -d "/mnt/$DEFAULT_ACTIVE_NAME.tmp" ] && sudo btrfs subvolume delete /mnt/$DEFAULT_ACTIVE_NAME.tmp
+				mv /mnt/$DEFAULT_ACTIVE_NAME /mnt/$DEFAULT_ACTIVE_NAME.tmp
+				mv /mnt/$SELECTED_FILE /mnt/$DEFAULT_ACTIVE_NAME
+				
+				local configured=$?
+			
+				[ "$configured" -eq 0 ] && msg="berhasil Restore snapshot.\nSystem akan restart dalam 5 detik..."
+				
+				if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
+					nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
+					nohup bash -c "sleep 8 && systemctl reboot" >/dev/null 2>&1 &
+				fi
+			fi
+			
 		else
 			msg='Pilih menu :'
 		fi
@@ -120,9 +137,13 @@ restore_delete(){
 	# Hapus snapshot
 	delete_snapshot(){
 		
-		if [ "$?" -eq 0 ] && [ "$SELECTED_FILE" ]; then
-			rmdir $SELECTED_FILE
-			msg="Selected: '${SELECTED_FILE}'\nSnapshot berhasil dihapus."
+		if [ "$?" -eq 0 ] && [ -n "$SELECTED_FILE" ]; then
+			whiptail --title 'DELETE SNAPSHOT' --yesno \
+				"Apakah yakin ingin menghapus snapshot ini?\nSelected: $SELECTED_FILE" 0 0
+			if [ "$?" -eq 0 ]; then
+				sudo btrfs subvolume delete /mnt/$SELECTED_FILE
+				msg="Selected: '${SELECTED_FILE}'\nSnapshot berhasil dihapus."
+			fi
 		else
 			msg='Pilih menu :'
 		fi
@@ -130,7 +151,7 @@ restore_delete(){
 	
 	
 	# Menyimpan daftar file dalam variabel array
-	file_list=($(ls -1t $(dirname `realpath $0`) | grep "@" | grep -v "@active"))
+	file_list=($(ls -1t /mnt | grep "@" | grep -v "@active"))
 	
 	if [ -z "$file_list" ]; then
 		
