@@ -7,11 +7,15 @@ clear
 
 
 switch_path(){
+	
 	if [ "$TARGET_SNAPSHOT" == 'root' ]; then
+		
 		TARGET_PATH=$(lsblk -o path,mountpoint | awk '$2=="/" {print $1}')
 		MOUNTPOINT='/'
 		DEFAULT_ACTIVE_NAME='@active_root'
+	
 	elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
+		
 		TARGET_PATH=$(lsblk -o path,mountpoint | awk '$2=="/home" {print $1}')
 		MOUNTPOINT='/home'
 		DEFAULT_ACTIVE_NAME='@active_home'
@@ -24,12 +28,14 @@ switch_path(){
 umount_disk() {
 	
 	switch_path
+	
 	[ -n "$MNT" ] && sudo umount /mnt
 }
 
 mount_disk(){
 	
 	switch_path	
+	
 	[ -n "$TARGET_PATH" ] && sudo mount -t btrfs -o subvolid=5 $TARGET_PATH /mnt
 }
 
@@ -49,6 +55,7 @@ menu_box(){
 	
 	local msg=$1 title=$2 button=$3
 	shift 3
+	
 	local options=("$@")
 	
 	menu=$(whiptail --menu "$msg" --title "$title" --cancel-button "$button" 0 50 0 "${options[@]}" 3>&1 1>&2 2>&3)
@@ -64,15 +71,19 @@ menu_box(){
 # Memilih target untuk mengatur snapshot root/home
 target_snapshot(){
 	
-	while true; do
-	local options=(
-		'home' ' : Atur snapshot home direktory'
-		'root' ' : Atur snapshot system root)'
-	)
+	local options
 	
-	TARGET_SNAPSHOT=$(menu_box 'Pilih target:' 'SNAPSHOT' 'Exit' "${options[@]}")
-	exit_code
-	main_menu
+	while true; do
+		options=(
+			'home' ' : Atur snapshot home direktory'
+			'root' ' : Atur snapshot system root)'
+		)
+	
+		TARGET_SNAPSHOT=$(menu_box 'Pilih target:' 'SNAPSHOT' 'Exit' "${options[@]}")
+		exit_code
+		
+		main_menu
+		
 	done
 }
 
@@ -85,10 +96,14 @@ creat_snapshot(){
 	SNAPSHOT_NAME=$(input_box "$msg" "@${TARGET_SNAPSHOT}_$(date +"Date_%Y-%m-%d_Time_%H-%M-%S")")
 	
 	if [ "$TARGET_SNAPSHOT" == 'root' ]; then
+	
 		[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume snapshot /mnt/$DEFAULT_ACTIVE_NAME /mnt/$SNAPSHOT_NAME
 		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $TARGET_SNAPSHOT"
+	
 	elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
+	
 		sudo chmod 777 /mnt
+	
 		[ -n "$SNAPSHOT_NAME" ] && btrfs subvolume snapshot /mnt/$DEFAULT_ACTIVE_NAME /mnt/$SNAPSHOT_NAME
 		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $TARGET_SNAPSHOT"
 	fi
@@ -98,9 +113,10 @@ creat_snapshot(){
 
 # Restore/hapus snapshot
 restore_delete(){
+	
 	local selected SELECTED_FILE file_list options title
-	selected=$1
-	title=$2
+	
+	selected=$1	title=$2
 	
 	# Restore snapshot
 	restore_snapshot(){
@@ -138,13 +154,18 @@ restore_delete(){
 	delete_snapshot(){
 		
 		if [ "$?" -eq 0 ] && [ -n "$SELECTED_FILE" ]; then
+			
 			whiptail --title 'DELETE SNAPSHOT' --yesno \
 				"Apakah yakin ingin menghapus snapshot ini?\nSelected: $SELECTED_FILE" 0 0
+			
 			if [ "$?" -eq 0 ]; then
+			
 				sudo btrfs subvolume delete /mnt/$SELECTED_FILE
 				msg="Selected: '${SELECTED_FILE}'\nSnapshot berhasil dihapus."
 			fi
+			
 		else
+		
 			msg='Pilih menu :'
 		fi
 	}
@@ -157,9 +178,11 @@ restore_delete(){
 		
 		whiptail --title "SNAPSHOT" --msgbox "Tidak ada snapshot." 0 0
 		return
+		
 	else
 		# Looping untuk membuat opsi menu
-		options=()
+		local options=()
+		
 		for file in "${file_list[@]}"; do
 			# Mengambil nama file tanpa awalan
 			file_name="${file}"
@@ -174,6 +197,7 @@ restore_delete(){
 }	
 
 configure_snapshot(){
+	
 	local UUID_TARGET_PATH CHECKED_ACTIVE_SNAPSHOT GEN_ACTIVE_SNAPSHOT
 	
 	switch_path
@@ -205,11 +229,13 @@ configure_snapshot(){
 		elif ! [[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ]]; then
 			
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
+				
 				#[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
 				[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
 			
 			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
+				
 				#~ [ -n "$SNAPSHOT_NAME" ] && btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo chmod 777 /mnt
 				btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
@@ -264,14 +290,15 @@ main_menu(){
 	msg='Pilih menu: '
 	
 	while true; do
+		
 		options=(
 			'Create' ' : Buat snapshot baru' 
 			'Restore' ' : Pilih snapshot dari daftar lalu restore'
 			'Delete' ' : Pilih snapshot dari daftar lalu hapus'
 		)
+		
 		MENU=$(menu_box "$msg" 'MAIN MENU' 'Back' "${options[@]}")
-		local exit_code=$?
-		[ "$exit_code" -ne 0 ] && return
+		[ "$?" -ne 0 ] && break
 	
 		case $MENU in
 			'Create' )
@@ -291,7 +318,9 @@ main_menu(){
 }
 
 if [ "$(whoami)" != 'root' ]; then
+
 	target_snapshot
 else
+
 	echo -e "jangan jalankan skrip ini menggunakan sudo atau akun root\n"
 fi
