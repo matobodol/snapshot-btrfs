@@ -24,13 +24,13 @@ switch_path(){
 umount_disk() {
 	
 	switch_path
-	[ -n "$MNT" ] && sudo umount /mnt && echo "Umount $MNT from /mnt sukses"
+	[ -n "$MNT" ] && sudo umount /mnt
 }
 
 mount_disk(){
 	
 	switch_path	
-	[ -n "$TARGET_PATH" ] && sudo mount -t btrfs -o subvolid=5 $TARGET_PATH /mnt && echo "Mount $TARGET_PATH to /mnt sukses"
+	[ -n "$TARGET_PATH" ] && sudo mount -t btrfs -o subvolid=5 $TARGET_PATH /mnt
 }
 
 input_box(){
@@ -192,11 +192,13 @@ configure_snapshot(){
 	
 		#~ mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
 		if [ -d "$/mnt/$CHECKED_ACTIVE_SNAPSHOT" ]; then
+			
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
 				sudo mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
 			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
 				mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
 			fi
+			
 			configured=$?
 			
 		elif ! [[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ]]; then
@@ -204,15 +206,16 @@ configure_snapshot(){
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
 				#[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
-				configured=$?
 				[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
 			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
 				#~ [ -n "$SNAPSHOT_NAME" ] && btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo chmod 777 /mnt
 				btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
-				configured=$?
-				[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
+				
 			fi
+			
+			configured=$?
+			[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
 			
 		fi
 	fi
@@ -221,14 +224,12 @@ configure_snapshot(){
 	if [[ -n "GEN_ACTIVE_SNAPSHOT" ]] && [[ -n $(sed -n "/$CHECKED_ACTIVE_SNAPSHOT/p" $PATH_FSTAB) ]]; then
 	
 		# Mengganti nama snapshot pada fstab
-		sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
-		[ "$?" -ne 0 ] && echo 'sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" error'
+		[ "CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
 		
 	else
 		
 		# Menambahkan komentar pada baris dengan kata kunci "/home" jika belum ada komentar
-		sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
-		[ "$?" -ne 0 ] && echo 'sed -i '/\/home/ { /^[^#]/ s/^/#/ }' error'
+		[ "CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
 		
 		# Mendapatkan uuid $TARGET_PATH
 		UUID_TARGET_PATH=$(sudo blkid -s UUID -o value $TARGET_PATH)
@@ -239,9 +240,16 @@ configure_snapshot(){
 		# Menambahkan baris dengan konten dinamis pada file "/etc/fstab"
 		if [[ -z $(sed -n "/$DEFAULT_ACTIVE_NAME/p" $PATH_FSTAB) ]]; then
 			sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
-
-			[ "$?" -ne 0 ] && echo 'sed -i "\$a$ADD_FSTAB" error'
 		fi
+	fi
+	
+	if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
+		whiptail --title 'CONFIGURING SNAPSHOT' --yesno \
+		"sebelum melanjutkan, mohon simpan semua pekerjaan anda,\
+		\nkarena setelah proses ini selesai system akan otomatis restart." 0 0
+
+		nohup bash -c "sleep 30 && kill $PPID" >/dev/null 2>&1 &
+		nohup bash -c "sleep 33 && systemctl reboot" >/dev/null 2>&1 &
 	fi
 }
 
@@ -265,17 +273,6 @@ main_menu(){
 		case $MENU in
 			'Create' )
 				creat_snapshot
-				
-				whiptail --title 'CONFIGURING SNAPSHOT' --yesno \
-				"sebelum melanjutkan, mohon simpan semua pekerjaan anda,\
-				\nkarena setelah proses ini selesai system akan otomatis restart." 0 0
-
-				if [ "$?" -eq 0 ]; then
-					if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
-						nohup bash -c "sleep 30 && kill $PPID" >/dev/null 2>&1 &
-						nohup bash -c "sleep 33 && systemctl reboot" >/dev/null 2>&1 &
-					fi
-				fi
 			;;
 			'Restore' )
 				restore_delete 'restore_snapshot' 'RESTORE'
