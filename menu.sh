@@ -195,6 +195,7 @@ configure_snapshot(){
 			
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
 				sudo mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
+			
 			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
 				mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
 			fi
@@ -204,17 +205,14 @@ configure_snapshot(){
 		elif ! [[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ]]; then
 			
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
-				
 				#[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
 				[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
 			
 			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
-				
 				#~ [ -n "$SNAPSHOT_NAME" ] && btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo chmod 777 /mnt
 				btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
-				
 			fi
 			
 			configured=$?
@@ -245,21 +243,25 @@ configure_snapshot(){
 	fi
 	
 	if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
+		
 		whiptail --title 'CONFIGURING SNAPSHOT' --yesno \
 		"sebelum melanjutkan, mohon simpan semua pekerjaan anda,\
 		\nkarena setelah proses ini selesai system akan otomatis restart." 0 0
-
-		nohup bash -c "sleep 30 && kill $PPID" >/dev/null 2>&1 &
-		nohup bash -c "sleep 33 && systemctl reboot" >/dev/null 2>&1 &
+		
+		if [ "$?"  -eq 0 ]; then
+			nohup bash -c "sleep 30 && kill $PPID" >/dev/null 2>&1 &
+			nohup bash -c "sleep 33 && systemctl reboot" >/dev/null 2>&1 &
+		fi
 	fi
 }
 
 main_menu(){
 	local options MENU msg
-	msg='Pilih menu: '
-	configured=1
+	
 	umount_disk
 	mount_disk
+	
+	msg='Pilih menu: '
 	
 	while true; do
 		options=(
@@ -284,6 +286,7 @@ main_menu(){
 		esac
 		
 	done
+	
 	umount_disk
 }
 
