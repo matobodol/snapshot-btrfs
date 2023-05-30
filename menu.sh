@@ -215,9 +215,10 @@ configure_snapshot(){
 		# Menentukan variabel dynamic_content
 		ADD_FSTAB="UUID=$UUID_TARGET_PATH /home btrfs defaults,subvol=$DEFAULT_ACTIVE_NAME 0 2"
 
-		# Menambahkan baris dengan konten dinamis pada file "fstab"
+		# Menambahkan baris dengan konten dinamis pada file "/etc/fstab"
 		if [[ -z $(sed -n "/$DEFAULT_ACTIVE_NAME/p" $PATH_FSTAB) ]]; then
-			sudo sed -i "\$a$ADD_FSTAB" $PATH_FSTAB
+			sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
+
 			[ "$?" -ne 0 ] && echo 'sed -i "\$a$ADD_FSTAB" error'
 		fi
 	fi
