@@ -224,12 +224,12 @@ configure_snapshot(){
 	if [[ -n "GEN_ACTIVE_SNAPSHOT" ]] && [[ -n $(sed -n "/$CHECKED_ACTIVE_SNAPSHOT/p" $PATH_FSTAB) ]]; then
 	
 		# Mengganti nama snapshot pada fstab
-		[ "CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
+		[ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
 		
 	else
 		
 		# Menambahkan komentar pada baris dengan kata kunci "/home" jika belum ada komentar
-		[ "CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
+		[ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
 		
 		# Mendapatkan uuid $TARGET_PATH
 		UUID_TARGET_PATH=$(sudo blkid -s UUID -o value $TARGET_PATH)
