@@ -204,10 +204,13 @@ configure_snapshot(){
 		elif ! [[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ]]; then
 			
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
+				
 				#[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
 				[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
+			
 			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
+				
 				#~ [ -n "$SNAPSHOT_NAME" ] && btrfs subvolume creat $DEFAULT_ACTIVE_NAME
 				sudo chmod 777 /mnt
 				btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
@@ -226,10 +229,10 @@ configure_snapshot(){
 		# Mengganti nama snapshot pada fstab
 		[ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
 		
-	else
+	elif [ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ]; then
 		
 		# Menambahkan komentar pada baris dengan kata kunci "/home" jika belum ada komentar
-		[ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
+		sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
 		
 		# Mendapatkan uuid $TARGET_PATH
 		UUID_TARGET_PATH=$(sudo blkid -s UUID -o value $TARGET_PATH)
@@ -238,9 +241,7 @@ configure_snapshot(){
 		ADD_FSTAB="UUID=$UUID_TARGET_PATH /home btrfs defaults,subvol=$DEFAULT_ACTIVE_NAME 0 2"
 
 		# Menambahkan baris dengan konten dinamis pada file "/etc/fstab"
-		if [[ -z $(sed -n "/$DEFAULT_ACTIVE_NAME/p" $PATH_FSTAB) ]]; then
-			sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
-		fi
+		sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
 	fi
 	
 	if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
