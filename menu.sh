@@ -233,7 +233,6 @@ main_menu(){
 			'Create' ' : Buat snapshot baru' 
 			'Restore' ' : Pilih snapshot dari daftar lalu restore'
 			'Delete' ' : Pilih snapshot dari daftar lalu hapus'
-			'Configure' ' : Otomatis mengkonfigurasi snapshot dan fstab'
 		)
 		MENU=$(menu_box "$msg" 'MAIN MENU' 'Back' "${options[@]}")
 		local exit_code=$?
