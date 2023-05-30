@@ -178,7 +178,7 @@ configure_snapshot(){
 			fi
 			configured=$?
 			
-		elif ! [[ -d "$(dirname $(realpath $0))/$DEFAULT_ACTIVE_NAME" ]]; then
+		elif ! [[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ]]; then
 			
 			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
 				#[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume creat $DEFAULT_ACTIVE_NAME
@@ -197,11 +197,17 @@ configure_snapshot(){
 	fi
 	
 	# Setup /etc/fstab
-	if [ -n "GEN_ACTIVE_SNAPSHOT" ] && [[ $(sed -n '/\/home/p' $PATH_FSTAB) ]]; then
+	if [[ -n "GEN_ACTIVE_SNAPSHOT" ]] && [[ -n $(sed -n "/$CHECKED_ACTIVE_SNAPSHOT/p" $PATH_FSTAB) ]]; then
 	
+		# Mengganti nama snapshot pada fstab
+		sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
+		[ "$?" -ne 0 ] && echo 'sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" error'
+		
+	else
+		
 		# Menambahkan komentar pada baris dengan kata kunci "/home" jika belum ada komentar
-		sed -i '/^\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
-		[ "$?" -ne 0 ] && echo 'sed -i '/^\/home/ { /^[^#]/ s/^/#/ }' error'
+		sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
+		[ "$?" -ne 0 ] && echo 'sed -i '/\/home/ { /^[^#]/ s/^/#/ }' error'
 		
 		# Mendapatkan uuid $TARGET_PATH
 		UUID_TARGET_PATH=$(sudo blkid -s UUID -o value $TARGET_PATH)
@@ -211,13 +217,9 @@ configure_snapshot(){
 
 		# Menambahkan baris dengan konten dinamis pada file "fstab"
 		if [[ -z $(sed -n "/$DEFAULT_ACTIVE_NAME/p" $PATH_FSTAB) ]]; then
-			sed -i "\$a$ADD_FSTAB" $PATH_FSTAB
+			sudo sed -i "\$a$ADD_FSTAB" $PATH_FSTAB
 			[ "$?" -ne 0 ] && echo 'sed -i "\$a$ADD_FSTAB" error'
 		fi
-
-		# Mengganti nama snapshot pada fstab
-		sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
-		[ "$?" -ne 0 ] && echo 'sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" error'
 	fi
 }
 
@@ -225,8 +227,8 @@ main_menu(){
 	local options MENU msg
 	msg='Pilih menu: '
 	configured=1
-	#umount_disk
-	#mount_disk
+	umount_disk
+	mount_disk
 	
 	while true; do
 		options=(
@@ -248,8 +250,8 @@ main_menu(){
 
 				if [ "$?" -eq 0 ]; then
 					if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
-						nohup bash -c "sleep 10 && kill $PPID" >/dev/null 2>&1 &
-						nohup bash -c "sleep 12 && systemctl reboot" >/dev/null 2>&1 &
+						nohup bash -c "sleep 30 && kill $PPID" >/dev/null 2>&1 &
+						nohup bash -c "sleep 33 && systemctl reboot" >/dev/null 2>&1 &
 					fi
 				fi
 			;;
@@ -262,7 +264,7 @@ main_menu(){
 		esac
 		
 	done
-	#umount_disk
+	umount_disk
 }
 
 if [ "$(whoami)" != 'root' ]; then
