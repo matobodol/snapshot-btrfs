@@ -18,7 +18,7 @@ switch_path(){
 	fi
 	
 	MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $1}')
-	PATH_FSTAB=$(dirname $(realpath $0))/tes.txt
+	PATH_FSTAB='/etc/fstab'
 }
 
 umount_disk() {
