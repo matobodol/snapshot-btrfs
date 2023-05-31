@@ -34,13 +34,17 @@ mount_disk(){
 	
 	# mendapatkan path drive TARGET_SNAPSHOT
 	PATH_TARGET_SNAPSHOT=$(
-		lsblk -o path,mountpoint | grep "$MOUNTPOINT" | awk '{print $1}'
+		lsblk -o path,mountpoint | grep -w "$MOUNTPOINT" | awk '{print $1}'
 	)
 	
-	echo "Mount $PATH_TARGET_SNAPSHOT into /mnt"
-	
-	[ -n "$PATH_TARGET_SNAPSHOT" ] && sudo mount -t btrfs -o subvolid=5 $PATH_TARGET_SNAPSHOT /mnt
-	exit_code
+	if [ -n "$PATH_TARGET_SNAPSHOT" ]; then
+		echo "Mount $PATH_TARGET_SNAPSHOT into /mnt"
+		sudo mount -t btrfs -o subvolid=5 $PATH_TARGET_SNAPSHOT /mnt
+		exit_code
+	else
+		echo "Tidak ada Partisi $MOUNTPOINT"
+		exit
+	fi
 }
 
 input_box(){
@@ -171,6 +175,7 @@ restore_delete(){
 				
 				# get tangal dan jam saat ini
 				current_date=$(date +"%Y-%m-%d_%H%M%S")
+				
 				# rename snapshot saat ini sebelum merestore snapshot lain
 				before_restore="@${TARGET_SNAPSHOT}_before_restore_data_${tanggal_dibuat}_sampai_${current_date}"
 				
@@ -186,20 +191,20 @@ restore_delete(){
 						btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} >/dev/null 2>&1 &
 					fi
 					
-					SET_FSTAB="$?"
-					
-				elif [ -z "$GEN_ACTIVE_SNAPSHOT" ]; then
+				elif [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
 				
+					[ "$TARGET_SNAPSHOT" == 'home' ] && sudo chmod 777 /mnt
+					
 					mv /mnt/${DEFAULT_ACTIVE_NAME} /mnt/${before_restore}
 					sudo btrfs subvolume delete /mnt/${DEFAULT_ACTIVE_NAME}
 					mv /mnt/${SELECTED_FILE} /mnt/${DEFAULT_ACTIVE_NAME}
-				
-					SET_FSTAB="$?"
-				
+					
 				fi
 				
 				
 			fi
+			
+			SET_FSTAB="$?"
 			
 			configure_fstab
 			
@@ -282,17 +287,17 @@ configure_fstab(){
 		UUID=$(sudo blkid -s UUID -o value $PATH_TARGET_SNAPSHOT)
 
 		#root_config="UUID=$UUID $MOUNTPOINT defaults,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 0"
-		home_config="UUID=$UUID $MOUNTPOINT btrfs rw,noatime,user,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 1"
+		home_config="UUID=$UUID $MOUNTPOINT btrfs defaults,subvol=${DEFAULT_ACTIVE_NAME} 0 1"
 	
 		[ "$TARGET_SNAPSHOT" == 'home' ] && add_config="$home_config" #|| add_config="$root_config"
 		
 		if [  "$TARGET_SNAPSHOT" == 'home' ]; then
-			if [[ "$SET_FSTAB" -eq 0 ]] && ! grep -q "$add_config" /etc/fstab && grep -q "/home" /etc/fstab; then
+			if [[ "$SET_FSTAB" -eq 0 ]] && ! [ "$(grep "$add_config" /etc/fstab)" ] && [ "$(grep "/home" /etc/fstab)" ]; then
 			
 				! [ -f "/etc/backup.fstab" ] sudo cp /etc/fstab /etc/backup.fstab
 				
-				sudo sed -i '/\/home/d' /etc/fstab
-				echo "$add_config" >> /etc/fstab
+				[ "$(sed -n '/\/home/p' /etc/fstab)" ] && sudo sed -i '/\/home/d' /etc/fstab
+				echo "$add_config" | sudo tee -a /etc/fstab
 			fi
 		fi
 	}
