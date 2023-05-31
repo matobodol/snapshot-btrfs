@@ -1,14 +1,8 @@
 #!/bin/bash
 clear
 
-# Variabel global:
-# TARGET_SNAPSHOT : value (root/home)
-# PATH_TARGET_SNAPSHOT : value (/dev/sdxY)
-
-
+# Variabel global
 global_variabel(){
-
-	PATH_FSTAB='/etc/fstab'	
 
 	if [ "$TARGET_SNAPSHOT" == 'root' ]; then
 		MOUNTPOINT='/'
@@ -96,7 +90,7 @@ get_active_snapshot(){
 		CHECKED_ACTIVE_SNAPSHOT=$(
 			sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
 		)
-	elif [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
+	elif [ -z "$GEN_ACTIVE_SNAPSHOT" ]; then
 	
 		[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ] && sudo btrfs subvolume delete /mnt/$DEFAULT_ACTIVE_NAME >/dev/null 2>&1 &
 		
