@@ -3,62 +3,78 @@ clear
 
 # Variabel global:
 # TARGET_SNAPSHOT : value (root/home)
-# TARGET_PATH : value (/dev/sdxY)
+# PATH_TARGET_SNAPSHOT : value (/dev/sdxY)
 
 
-switch_path(){
-	
+global_variabel(){
+
+	PATH_FSTAB='/etc/fstab'	
+
 	if [ "$TARGET_SNAPSHOT" == 'root' ]; then
-		
-		TARGET_PATH=$(lsblk -o path,mountpoint | awk '$2=="/" {print $1}')
 		MOUNTPOINT='/'
 		DEFAULT_ACTIVE_NAME='@active_root'
 	
 	elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
-		
-		TARGET_PATH=$(lsblk -o path,mountpoint | awk '$2=="/home" {print $1}')
 		MOUNTPOINT='/home'
 		DEFAULT_ACTIVE_NAME='@active_home'
 	fi
 	
-	MNT=$(lsblk -o path,mountpoint | awk '$2=="/mnt" {print $1}')
-	PATH_FSTAB='/etc/fstab'
 }
 
 umount_disk() {
 	
-	switch_path
+	global_variabel
 	
-	[ -n "$MNT" ] && sudo umount /mnt
+	# mendapatkan path drive yg terpasang pada /mnt
+	MNT=$(
+		lsblk -o path,mountpoint | awk '$2=="/mnt" {print $1}'
+	)
+		
+	[ -n "$MNT" ] && sudo umount /mnt && echo "Umount $PATH_TARGET_SNAPSHOT from /mnt"
+
 }
 
 mount_disk(){
 	
-	switch_path	
+	global_variabel
 	
-	[ -n "$TARGET_PATH" ] && sudo mount -t btrfs -o subvolid=5 $TARGET_PATH /mnt
+	# mendapatkan path drive TARGET_SNAPSHOT
+	PATH_TARGET_SNAPSHOT=$(
+		lsblk -o path,mountpoint | grep "$MOUNTPOINT" | awk '{print $1}'
+	)
+	
+	echo "Mount $PATH_TARGET_SNAPSHOT into /mnt"
+	
+	[ -n "$PATH_TARGET_SNAPSHOT" ] && sudo mount -t btrfs -o subvolid=5 $PATH_TARGET_SNAPSHOT /mnt
+	exit_code
 }
 
 input_box(){
 	
-	local msg=$1 name=$2
-	echo $(whiptail --title "BUAT SNAPSHOT" --inputbox "$msg" 8 50 $name 2>&1 >/dev/tty)
+	local menu msg=$1 name=$2
+	menu=$(
+		whiptail --title "BUAT SNAPSHOT" --inputbox "$msg" 8 50 $name 2>&1 >/dev/tty
+	)
+	
+	printf "%s" "$menu"
 }
 
 exit_code(){
 	
 	local EXITCODE=$?
-	[[ $EXITCODE -eq 1 ]] && exit $EXITCODE 
+	[[ $EXITCODE -ne 0 ]] && exit $EXITCODE 
 }
 
 menu_box(){
 	
-	local msg=$1 title=$2 button=$3
+	local menu msg=$1 title=$2 button=$3
 	shift 3
 	
 	local options=("$@")
 	
-	menu=$(whiptail --menu "$msg" --title "$title" --cancel-button "$button" 0 50 0 "${options[@]}" 3>&1 1>&2 2>&3)
+	menu=$(
+		whiptail --menu "$msg" --title "$title" --cancel-button "$button" 0 50 0 "${options[@]}" 3>&1 1>&2 2>&3
+	)
 	exit_code
 	
 	printf "%s" "$menu"
@@ -68,86 +84,133 @@ menu_box(){
 #########################################################
 
 
+get_active_snapshot(){
+	
+	# cek snapshot yg sedang aktif
+	GEN_ACTIVE_SNAPSHOT=$(
+		sudo btrfs subvolume list ${MOUNTPOINT} | awk '{if ($4 > max) max = $4} END {print max}'
+	)
+	
+	if [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
+		# mendapatkan nama snapshot yg sedang aktif
+		CHECKED_ACTIVE_SNAPSHOT=$(
+			sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
+		)
+	elif [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
+	
+		[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ] && sudo btrfs subvolume delete /mnt/$DEFAULT_ACTIVE_NAME >/dev/null 2>&1 &
+		
+		if [ "$TARGET_SNAPSHOT" == 'root' ]; then
+			sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} >/dev/null 2>&1 &
+		elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
+			sudo chmod 777 /mnt
+			btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} >/dev/null 2>&1 &
+		fi
+	fi
+}
+
 # Memilih target untuk mengatur snapshot root/home
 target_snapshot(){
 	
 	local options
 	
+	# loop membuat daftar pilihan
 	while true; do
 		options=(
 			'home' ' : Atur snapshot home direktory'
 			'root' ' : Atur snapshot system root)'
 		)
+		
+	# menampilkan daftar menu (home/root)
+	TARGET_SNAPSHOT=$(
+		menu_box 'Pilih target:' 'SNAPSHOT' 'Exit' "${options[@]}"
+	)
+	exit_code
 	
-		TARGET_SNAPSHOT=$(menu_box 'Pilih target:' 'SNAPSHOT' 'Exit' "${options[@]}")
-		exit_code
-		
-		main_menu
-		
+	main_menu
+	
 	done
 }
 
 # Membuat snapshot
 creat_snapshot(){
 	
-	configure_snapshot
+	local SNAPSHOT_NAME msgs="Nama snapshot:\nNOTE: simbol '@' akan otomatis ditambahkan diawal nama."
 	
-	msg="Nama snapshot:\nNOTE: jangan hapus symbol '@' pada nama."
-	SNAPSHOT_NAME=$(input_box "$msg" "@${TARGET_SNAPSHOT}_$(date +"%Y-%m-%d_%H%M%S")")
+	# menyimpan input user sebagai nama untuk snapshot baru
+	SNAPSHOT_NAME=$(
+		input_box "$msgs" "${TARGET_SNAPSHOT}_$(date +"%Y-%m-%d_%H%M%S")"
+	)
 	
-	if [ "$TARGET_SNAPSHOT" == 'root' ]; then
+	[ -n "$SNAPSHOT_NAME" ] && SNAPSHOT_NAME="@${SNAPSHOT_NAME}"
 	
-		[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume snapshot /mnt/$DEFAULT_ACTIVE_NAME /mnt/$SNAPSHOT_NAME
-		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $TARGET_SNAPSHOT"
+	# membuat snapshot
+	if [ "$TARGET_SNAPSHOT" == 'root' ] && [ -n "$SNAPSHOT_NAME" ]; then
 	
-	elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
+		sudo btrfs subvolume snapshot /mnt/$DEFAULT_ACTIVE_NAME /mnt/$SNAPSHOT_NAME >/dev/null 2>&1 &
+		msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $MOUNTPOINT"
 	
+	elif [ "$TARGET_SNAPSHOT" == 'home' ] && [ -n "$SNAPSHOT_NAME" ]; then
 		sudo chmod 777 /mnt
 	
-		[ -n "$SNAPSHOT_NAME" ] && btrfs subvolume snapshot /mnt/$DEFAULT_ACTIVE_NAME /mnt/$SNAPSHOT_NAME
-		[ "$?" -eq 0 ] && msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $TARGET_SNAPSHOT"
+		btrfs subvolume snapshot /mnt/$DEFAULT_ACTIVE_NAME /mnt/$SNAPSHOT_NAME >/dev/null 2>&1 &
+		msg="Snapshot berhasil dibuat.\nNama: $SNAPSHOT_NAME\nPath: $MOUNTPOINT"
 	fi
 	
-	[[ "$configured" -eq 0 ]] && msg="berhasil mengkonfigurasi.\nSystem akan restart dalam 10 detik..."
 }
 
 # Restore/hapus snapshot
 restore_delete(){
 	
-	local selected SELECTED_FILE file_list options title
-	
-	selected=$1	title=$2
+	local SELECTED
+	SELECTED=$1	title=$2
 	
 	# Restore snapshot
 	restore_snapshot(){
 		
+		local GEN_ACTIVE_SNAPSHOT CHECKED_ACTIVE_SNAPSHOT tanggal_dibuat current_date before_restore SET_FSTAB
+		
 		if [ "$?" -eq 0 ] && [ -n "$SELECTED_FILE" ]; then
 			
 			whiptail --title 'RESTORING SNAPSHOT' --yesno \
-				"sebelum melanjutkan, mohon simpan semua pekerjaan anda terlebih dahulu,\
-				\ndan buatlah snapshot baru pada sesi saat ini.\
-				\nkarena setelah proses ini selesai system akan otomatis restart \
-				\ndan semua data dari waktu terakhir membuat snapshot sampai saat ini akan hilang." 0 0
+				"sebelum melanjutkan, mohon simpan semua tugas anda terlebih dahulu,\
+				\nkarena setelah proses ini selesai system akan otomatis restart." 0 0
 			
 			if [ "$?" -eq 0 ]; then
-				
-				[ -d "/mnt/$DEFAULT_ACTIVE_NAME.tmp" ] && sudo btrfs subvolume delete /mnt/$DEFAULT_ACTIVE_NAME.tmp
-				mv /mnt/$DEFAULT_ACTIVE_NAME /mnt/$DEFAULT_ACTIVE_NAME.tmp
-				mv /mnt/$SELECTED_FILE /mnt/$DEFAULT_ACTIVE_NAME
-				
-				local configured=$?
 			
-				[ "$configured" -eq 0 ] && msg="berhasil Restore snapshot.\nSystem akan restart dalam 5 detik..."
+				get_active_snapshot
 				
-				if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
-					nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
-					nohup bash -c "sleep 8 && systemctl reboot" >/dev/null 2>&1 &
-				fi
+				# mendapatkan tanggal dibuat sebuah file
+				tanggal_dibuat=$(
+					stat -c %y "/mnt/${CHECKED_ACTIVE_SNAPSHOT}" | awk '{print $1}'
+				)
+				
+				# get tangal dan jam saat ini
+				current_date=$(date +"%Y-%m-%d_%H%M%S")
+				
+				# rename snapshot saat ini sebelum di timpa / merestore snapshot lain
+				before_restore="@${TARGET_SNAPSHOT}_before_restore_data_${tanggal_dibuat}_sampai_${current_date}"
+				mv /mnt/${DEFAULT_ACTIVE_NAME} /mnt/${before_restore}
+				sudo btrfs subvolume delete /mnt/${DEFAULT_ACTIVE_NAME}
+				mv /mnt/${SELECTED_FILE} /mnt/${DEFAULT_ACTIVE_NAME}
+				
+				SET_FSTAB="$?"
+			fi
+			
+			# restart sistem dalam waktu 6 detik jika $SET_FSTAB bernilai 0
+			if [ "$SET_FSTAB" -eq 0 ]; then
+				
+				configure_fstab
+				
+				msg="berhasil Restore snapshot.\nSystem akan restart dalam 5 detik..."
+				nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
+				nohup bash -c "sleep 6 && systemctl reboot" >/dev/null 2>&1 &
 			fi
 			
 		else
 			msg='Pilih menu :'
 		fi
+		
 	}
 	
 	# Hapus snapshot
@@ -155,12 +218,15 @@ restore_delete(){
 		
 		if [ "$?" -eq 0 ] && [ -n "$SELECTED_FILE" ]; then
 			
+			# pesan konfirmasi untuk menghapus atau batalkan
 			whiptail --title 'DELETE SNAPSHOT' --yesno \
 				"Apakah yakin ingin menghapus snapshot ini?\nSelected: $SELECTED_FILE" 0 0
 			
 			if [ "$?" -eq 0 ]; then
-			
+				
+				# menghapus snapshot yg dipilih
 				sudo btrfs subvolume delete /mnt/$SELECTED_FILE
+				
 				msg="Selected: '${SELECTED_FILE}'\nSnapshot berhasil dihapus."
 			fi
 			
@@ -170,138 +236,99 @@ restore_delete(){
 		fi
 	}
 	
-	
 	# Menyimpan daftar file dalam variabel array
-	file_list=($(ls -1t /mnt | grep "@" | grep -v "@active"))
+	file_list=($(
+		sudo btrfs subvolume list $MOUNTPOINT | grep -v "$DEFAULT_ACTIVE_NAME" | awk '{print $9}'
+	))
 	
 	if [ -z "$file_list" ]; then
-		
+		# menampilkan pesan jika file_list kosong
 		whiptail --title "SNAPSHOT" --msgbox "Tidak ada snapshot." 0 0
 		return
 		
 	else
 		# Looping untuk membuat opsi menu
-		local options=()
-		
+		options=()
 		for file in "${file_list[@]}"; do
 			# Mengambil nama file tanpa awalan
-			file_name="${file}"
-			options+=("$file_name" "")
+			options+=("$file" "")
 		done
 
 		# Menampilkan menu menggunakan Whiptail
-		SELECTED_FILE=$(menu_box 'Pilih File:' "$title" 'Back' "${options[@]}")
+		SELECTED_FILE=$(
+			menu_box 'Pilih File:' "$title" 'Back' "${options[@]}"
+		)
 	
-		$selected
+		$SELECTED
 	fi
 }	
 
-configure_snapshot(){
+configure_fstab(){
 	
-	local UUID_TARGET_PATH CHECKED_ACTIVE_SNAPSHOT GEN_ACTIVE_SNAPSHOT
+	# generate variabel global
+	global_variabel
 	
-	switch_path
-	
-	# Mendapatkan nilai gen tertinggi pada daftar snapshot yg ada
-	GEN_ACTIVE_SNAPSHOT=$(sudo btrfs subvolume list $MOUNTPOINT | awk '/gen/ { if ($4 > max) max = $4 } END { print max }')
-	
-	if [ -n "GEN_ACTIVE_SNAPSHOT" ]; then
+	set_fstab(){
 		
-		# mendapatkan nama snapshot yg sedang aktif berdasarkan nilai gen tertinggi
-		CHECKED_ACTIVE_SNAPSHOT=$(sudo btrfs subvolume list $MOUNTPOINT | grep "$GEN_ACTIVE_SNAPSHOT" | awk '{print $9}')
-	fi	
-	
-	# Setup default snapshot
-	if [ -n "GEN_ACTIVE_SNAPSHOT" ] && [ -n "$CHECKED_ACTIVE_SNAPSHOT" ]; then
-	
-		#~ mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
-		if [ -d "$/mnt/$CHECKED_ACTIVE_SNAPSHOT" ]; then
-			
-			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
-				sudo mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
-			
-			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
-				mv /mnt/$CHECKED_ACTIVE_SNAPSHOT /mnt/$DEFAULT_ACTIVE_NAME
-			fi
-			
-			configured=$?
-			
-		elif ! [[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ]]; then
-			
-			if [ "$TARGET_SNAPSHOT" == 'root' ]; then
-				
-				#[ -n "$SNAPSHOT_NAME" ] && sudo btrfs subvolume creat $DEFAULT_ACTIVE_NAME
-				sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
-				[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
-			
-			elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
-				
-				#~ [ -n "$SNAPSHOT_NAME" ] && btrfs subvolume creat $DEFAULT_ACTIVE_NAME
-				sudo chmod 777 /mnt
-				btrfs subvolume snapshot $MOUNTPOINT /mnt/$DEFAULT_ACTIVE_NAME
-			fi
-			
-			configured=$?
-			[ "$configured" -eq 0 ] && msg="Membuat default subvolume."
-			
-		fi
-	fi
-	
-	# Setup /etc/fstab
-	if [[ -n "GEN_ACTIVE_SNAPSHOT" ]] && [[ -n $(sed -n "/$CHECKED_ACTIVE_SNAPSHOT/p" $PATH_FSTAB) ]]; then
-	
-		# Mengganti nama snapshot pada fstab
-		[ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ] && sudo sed -i "s/$CHECKED_ACTIVE_SNAPSHOT/$DEFAULT_ACTIVE_NAME/g" $PATH_FSTAB
+		local add_config root_config home_config set_config=true
+		SET_FSTAB=true
 		
-	elif [ "$CHECKED_ACTIVE_SNAPSHOT" != "$DEFAULT_ACTIVE_NAME" ]; then
-		
-		# Menambahkan komentar pada baris dengan kata kunci "/home" jika belum ada komentar
-		sudo sed -i '/\/home/ { /^[^#]/ s/^/#/ }' $PATH_FSTAB
-		
-		# Mendapatkan uuid $TARGET_PATH
-		UUID_TARGET_PATH=$(sudo blkid -s UUID -o value $TARGET_PATH)
+		# Mendapatkan uuid $PATH_TARGET_SNAPSHOT
+		UUID=$(sudo blkid -s UUID -o value $PATH_TARGET_SNAPSHOT)
 
-		# Menentukan variabel dynamic_content
-		ADD_FSTAB="UUID=$UUID_TARGET_PATH /home btrfs defaults,subvol=$DEFAULT_ACTIVE_NAME 0 2"
-
-		# Menambahkan baris dengan konten dinamis pada file "/etc/fstab"
-		#sudo sed -i '$ a\'"$ADD_FSTAB" /etc/fstab
-		echo "$ADD_FSTAB" | sudo tee -a $PATH_FSTAB
-	fi
+		root_config="UUID=$UUID $MOUNTPOINT devaults,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 0"
+		home_config="UUID=$UUID $MOUNTPOINT btrfs rw,noatime,user,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 1"
 	
-	if [ -n "$configured" ] && [ "$configured" -eq 0 ]; then
+		[ "$TARGET_SNAPSHOT" == 'root' ] && add_config="$root_config" || add_config="$home_config"
 		
-		whiptail --title 'CONFIGURING SNAPSHOT' --yesno \
-		"sebelum melanjutkan, mohon simpan semua pekerjaan anda,\
-		\nkarena setelah proses ini selesai system akan otomatis restart." 0 0
-		
-		if [ "$?"  -eq 0 ]; then
-			nohup bash -c "sleep 30 && kill $PPID" >/dev/null 2>&1 &
-			nohup bash -c "sleep 33 && systemctl reboot" >/dev/null 2>&1 &
+		if [  "$TARGET_SNAPSHOT" == 'home' ]; then
+			if [[ $set_config == "true" ]] && ! grep -q "$add_config" /etc/fstab && grep -q "/home" /etc/fstab; then
+			
+				! [ -f "/etc/backup.fstab" ] sudo cp /etc/fstab /etc/backup.fstab
+				
+				sudo sed -i '/\/home/d' /etc/fstab
+				echo "$add_config" >> /etc/fstab
+			fi
 		fi
-	fi
-}
+	}
+	
+	get_active_snapshot
+	
+	[ "$SET_FSTAB" -eq 0 ] && [ -n "$CHECKED_ACTIVE_SNAPSHOT" ] && set_fstab
+	
+ }
 
 main_menu(){
-	local options MENU msg
 	
+	local options MENU msg
+	# umount jika terdeteksi ada mountpint /mnt
 	umount_disk
+	# mount target_path ke /mnt
 	mount_disk
 	
-	msg='Pilih menu: '
+	msg='Pilih menu:'
 	
+	#loop daftar menu
 	while true; do
 		
 		options=(
 			'Create' ' : Buat snapshot baru' 
 			'Restore' ' : Pilih snapshot dari daftar lalu restore'
 			'Delete' ' : Pilih snapshot dari daftar lalu hapus'
+			'SET_FSTAB' ' : configure'
 		)
 		
-		MENU=$(menu_box "$msg" 'MAIN MENU' 'Back' "${options[@]}")
+		# menampilkan pilihan menu
+		MENU=$(
+			menu_box "$msg" 'MAIN MENU' 'Back' "${options[@]}"
+		)
+		
 		[ "$?" -ne 0 ] && break
 	
 		case $MENU in
+			'SET_FSTAB' )
+				configure_fstab
+			;;
 			'Create' )
 				creat_snapshot
 			;;
