@@ -150,15 +150,10 @@ restore_delete(){
 				\nkarena setelah proses ini selesai system akan otomatis restart." 0 0
 			
 			if [ "$?" -eq 0 ]; then
-			
-				# cek snapshot yg sedang aktif
-				GEN_ACTIVE_SNAPSHOT=$(
-					sudo btrfs subvolume list ${MOUNTPOINT} | awk '{if ($4 > max) max = $4} END {print max}'
-				)
 	
 				# mendapatkan nama snapshot yg sedang aktif
 				CHECKED_ACTIVE_SNAPSHOT=$(
-					sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
+					sudo btrfs subvolume show $MOUNTPOINT | grep -w "Name:" | awk '{print $2}'
 				)
 				
 				# mendapatkan tanggal dibuat sebuah file
@@ -176,12 +171,12 @@ restore_delete(){
 				if [ -z "$GEN_ACTIVE_SNAPSHOT" ]; then
 		
 					if [ "$TARGET_SNAPSHOT" == 'root' ]; then
-						sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} >/dev/null 2>&1 &
+						sudo btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} #>/dev/null 2>&1 &
 					elif [ "$TARGET_SNAPSHOT" == 'home' ]; then
 						sudo chmod 777 /mnt
 
 						[ -d "/mnt/$DEFAULT_ACTIVE_NAME" ] && mv /mnt/$DEFAULT_ACTIVE_NAME /mnt/${before_restore}
-						btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} >/dev/null 2>&1 &
+						btrfs subvolume snapshot $MOUNTPOINT /mnt/${DEFAULT_ACTIVE_NAME} #>/dev/null 2>&1 &
 					fi
 					
 				elif [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
@@ -189,7 +184,6 @@ restore_delete(){
 					[ "$TARGET_SNAPSHOT" == 'home' ] && sudo chmod 777 /mnt
 					
 					mv /mnt/${DEFAULT_ACTIVE_NAME} /mnt/${before_restore}
-					sudo btrfs subvolume delete /mnt/${DEFAULT_ACTIVE_NAME}
 					mv /mnt/${SELECTED_FILE} /mnt/${DEFAULT_ACTIVE_NAME}
 					
 				fi
@@ -207,8 +201,8 @@ restore_delete(){
 				configure_fstab
 				
 				msg="berhasil Restore snapshot.\nSystem akan restart dalam 5 detik..."
-				nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
-				nohup bash -c "sleep 6 && systemctl reboot" >/dev/null 2>&1 &
+				#nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
+				#nohup bash -c "sleep 6 && systemctl reboot" >/dev/null 2>&1 &
 			fi
 			
 		else
@@ -295,17 +289,10 @@ configure_fstab(){
 		fi
 	}
 	
-	# cek snapshot yg sedang aktif
-	GEN_ACTIVE_SNAPSHOT=$(
-		sudo btrfs subvolume list ${MOUNTPOINT} | awk '{if ($4 > max) max = $4} END {print max}'
-	)
-	
-	if [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
 		# mendapatkan nama snapshot yg sedang aktif
 		CHECKED_ACTIVE_SNAPSHOT=$(
-			sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
+			sudo btrfs subvolume show /home | grep -w "Name:" | awk '{print $2}'
 		)
-	fi
 	
 	[ "$SET_FSTAB" -eq 0 ] && [ -n "$CHECKED_ACTIVE_SNAPSHOT" ] && set_fstab
 	
