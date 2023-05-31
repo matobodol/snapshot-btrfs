@@ -160,12 +160,13 @@ restore_delete(){
 				tanggal_dibuat=$(
 					stat -c %y "/mnt/${CHECKED_ACTIVE_SNAPSHOT}" | awk '{print $1}'
 				)
+				creation_date="$tanggal_dibuat"
 				
 				# get tangal dan jam saat ini
 				current_date=$(date +"%Y-%m-%d_%H%M%S")
 				
 				# rename snapshot saat ini sebelum merestore snapshot lain
-				before_restore="@${TARGET_SNAPSHOT}_before_restore_data_${tanggal_dibuat}_sampai_${current_date}"
+				before_restore="@${TARGET_SNAPSHOT}_before_restore_data_${creation_date}_sampai_${current_date}"
 				
 				
 				if [ -z "$GEN_ACTIVE_SNAPSHOT" ]; then
@@ -201,8 +202,8 @@ restore_delete(){
 				configure_fstab
 				
 				msg="berhasil Restore snapshot.\nSystem akan restart dalam 5 detik..."
-				#nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
-				#nohup bash -c "sleep 6 && systemctl reboot" >/dev/null 2>&1 &
+				nohup bash -c "sleep 5 && kill $PPID" >/dev/null 2>&1 &
+				nohup bash -c "sleep 6 && systemctl reboot" >/dev/null 2>&1 &
 			fi
 			
 		else
@@ -315,7 +316,6 @@ main_menu(){
 			'Create' ' : Buat snapshot baru' 
 			'Restore' ' : Pilih snapshot dari daftar lalu restore'
 			'Delete' ' : Pilih snapshot dari daftar lalu hapus'
-			'SET_FSTAB' ' : configure'
 		)
 		
 		# menampilkan pilihan menu
@@ -326,9 +326,6 @@ main_menu(){
 		[ "$?" -ne 0 ] && break
 	
 		case $MENU in
-			'SET_FSTAB' )
-				configure_fstab
-			;;
 			'Create' )
 				creat_snapshot
 			;;
