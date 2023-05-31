@@ -162,7 +162,7 @@ restore_delete(){
 	# Restore snapshot
 	restore_snapshot(){
 		
-		local GEN_ACTIVE_SNAPSHOT CHECKED_ACTIVE_SNAPSHOT tanggal_dibuat current_date before_restore SET_FSTAB
+		local tanggal_dibuat current_date before_restore SET_FSTAB
 		
 		if [ "$?" -eq 0 ] && [ -n "$SELECTED_FILE" ]; then
 			
@@ -182,8 +182,9 @@ restore_delete(){
 				# get tangal dan jam saat ini
 				current_date=$(date +"%Y-%m-%d_%H%M%S")
 				
-				# rename snapshot saat ini sebelum di timpa / merestore snapshot lain
+				# rename snapshot saat ini sebelum merestore snapshot lain
 				before_restore="@${TARGET_SNAPSHOT}_before_restore_data_${tanggal_dibuat}_sampai_${current_date}"
+				
 				mv /mnt/${DEFAULT_ACTIVE_NAME} /mnt/${before_restore}
 				sudo btrfs subvolume delete /mnt/${DEFAULT_ACTIVE_NAME}
 				mv /mnt/${SELECTED_FILE} /mnt/${DEFAULT_ACTIVE_NAME}
@@ -270,10 +271,10 @@ configure_fstab(){
 		# Mendapatkan uuid $PATH_TARGET_SNAPSHOT
 		UUID=$(sudo blkid -s UUID -o value $PATH_TARGET_SNAPSHOT)
 
-		root_config="UUID=$UUID $MOUNTPOINT devaults,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 0"
+		#root_config="UUID=$UUID $MOUNTPOINT defaults,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 0"
 		home_config="UUID=$UUID $MOUNTPOINT btrfs rw,noatime,user,subvol=${DEFAULT_ACTIVE_NAME},compress=zstd,space_cache 0 1"
 	
-		[ "$TARGET_SNAPSHOT" == 'root' ] && add_config="$root_config" || add_config="$home_config"
+		[ "$TARGET_SNAPSHOT" == 'home' ] && add_config="$home_config" #|| add_config="$root_config"
 		
 		if [  "$TARGET_SNAPSHOT" == 'home' ]; then
 			if [[ $set_config == "true" ]] && ! grep -q "$add_config" /etc/fstab && grep -q "/home" /etc/fstab; then
