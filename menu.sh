@@ -82,21 +82,6 @@ menu_box(){
 #########################################################
 
 
-get_active_snapshot(){
-	
-	# cek snapshot yg sedang aktif
-	GEN_ACTIVE_SNAPSHOT=$(
-		sudo btrfs subvolume list ${MOUNTPOINT} | awk '{if ($4 > max) max = $4} END {print max}'
-	)
-	
-	if [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
-		# mendapatkan nama snapshot yg sedang aktif
-		CHECKED_ACTIVE_SNAPSHOT=$(
-			sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
-		)
-	fi
-}
-
 # Memilih target untuk mengatur snapshot root/home
 target_snapshot(){
 	
@@ -166,7 +151,15 @@ restore_delete(){
 			
 			if [ "$?" -eq 0 ]; then
 			
-				get_active_snapshot
+				# cek snapshot yg sedang aktif
+				GEN_ACTIVE_SNAPSHOT=$(
+					sudo btrfs subvolume list ${MOUNTPOINT} | awk '{if ($4 > max) max = $4} END {print max}'
+				)
+	
+				# mendapatkan nama snapshot yg sedang aktif
+				CHECKED_ACTIVE_SNAPSHOT=$(
+					sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
+				)
 				
 				# mendapatkan tanggal dibuat sebuah file
 				tanggal_dibuat=$(
@@ -302,7 +295,17 @@ configure_fstab(){
 		fi
 	}
 	
-	get_active_snapshot
+	# cek snapshot yg sedang aktif
+	GEN_ACTIVE_SNAPSHOT=$(
+		sudo btrfs subvolume list ${MOUNTPOINT} | awk '{if ($4 > max) max = $4} END {print max}'
+	)
+	
+	if [ -n "$GEN_ACTIVE_SNAPSHOT" ]; then
+		# mendapatkan nama snapshot yg sedang aktif
+		CHECKED_ACTIVE_SNAPSHOT=$(
+			sudo btrfs subvolume list ${MOUNTPOINT} | awk "/$GEN_ACTIVE_SNAPSHOT/" | awk '{print $9}'
+		)
+	fi
 	
 	[ "$SET_FSTAB" -eq 0 ] && [ -n "$CHECKED_ACTIVE_SNAPSHOT" ] && set_fstab
 	
